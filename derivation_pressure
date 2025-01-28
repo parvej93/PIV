@@ -1,0 +1,172 @@
+# -*- coding: utf-8 -*-
+"""
+Pressure Calculation Script with GUI Interface
+"""
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import os
+import tkinter as tk
+from tkinter import filedialog, messagebox
+
+
+def load_simulation_data(simulationfolder, x_range=(1, 10), n_bins=1000):
+    x = np.logspace(np.log10(x_range[0]), np.log10(x_range[1]), n_bins + 1, endpoint=True)
+    u_all, v_all, pressure_all = [], [], []
+    coefficients_list = []
+
+    for pressure in np.arange(0.1, 100.1, 0.1):
+        csv_file = f'uv_data{pressure:.1f}.csv'
+        csv_path = os.path.join(simulationfolder, csv_file)
+
+        if not os.path.exists(csv_path):
+            continue  # Skip missing files
+
+        df_uv = pd.read_csv(csv_path)
+        u = df_uv['u'].values
+        v = df_uv['v'].values
+
+        u_all.extend(u)
+        v_all.extend(v)
+        pressure_all.append(pressure)
+
+        degree = 4
+        coefficients = np.polyfit(u, v, degree)
+        coefficients_list.append(coefficients)
+
+    return x, u_all, v_all, pressure_all, coefficients_list
+
+
+def load_manual_select_data(manualselectfolder, sheet_index, r_low, r_high):
+    excel_data = pd.ExcelFile(manualselectfolder)
+    sheet_name = excel_data.sheet_names[sheet_index]
+    exp = excel_data.parse(sheet_name)
+    
+    filtered_exp = exp[(exp['r'] >= r_low) & (exp['r'] <= r_high)]
+
+    return filtered_exp['c_dist'].values, filtered_exp['c_disp'].values, filtered_exp['r'].values
+
+
+def find_best_pressure(dpr1, dpr2, coefficients_list, pressure_all):
+    best_sse = float('inf')
+    best_pressure = None
+    best_fit = None
+
+    for coefficients, pressure in zip(coefficients_list, pressure_all):
+        dpy = np.polyval(coefficients, dpr1)
+        
+        sse = np.sum((dpy - dpr2) ** 2)
+        
+
+        if sse < best_sse:
+            best_sse = sse
+            best_pressure = pressure
+            best_fit = dpy
+
+    return best_pressure, best_fit, best_sse
+
+
+def save_results(dpr1, dpr2, best_fit, radii, best_pressure, output_path):
+    data_x = {'dist': dpr1, 'c_disp': dpr2, 'dispFEM': best_fit, 'r': radii, 'pressure': [best_pressure for i in range(len(radii))]}
+    df = pd.DataFrame(data_x)
+    df.to_excel(output_path, index=False)
+    print(f"Results saved to {output_path}")
+
+
+def plot_results(dpr2, dpr1, best_fit, best_pressure):
+    plt.figure(figsize=(10, 6))
+    plt.scatter(dpr1, dpr2, color='blue', label='Data Points')
+    plt.plot(dpr1, best_fit, color='red', label=f'Best Fit (Pressure: {best_pressure:.1f} kPa)')
+    plt.xlabel('Radial Distance')
+    plt.ylabel('Displacement')
+    plt.title('Pressure Calculation')
+    plt.legend()
+    plt.show()
+
+
+def main(simulationfolder, manualselectfolder, sheet_index, r_low, r_high, output_path):
+    x, u_all, v_all, pressure_all, coefficients_list = load_simulation_data(simulationfolder)
+    dpr1, dpr2, radii = load_manual_select_data(manualselectfolder, sheet_index, r_low, r_high)
+    best_pressure, best_fit, best_sse = find_best_pressure(dpr1, dpr2, coefficients_list, pressure_all)
+
+    print(f"Optimal Pressure: {best_pressure:.1f} kPa")
+    print(f"Sum of Squared Errors (SSE): {best_sse}")
+
+    save_results(dpr1, dpr2, best_fit, radii, best_pressure, output_path)
+    plot_results(dpr2, dpr1, best_fit, best_pressure)
+
+
+def run_interface():
+    def run_main():
+        simulationfolder = simulation_path.get()
+        manualselectfolder = manual_select_path.get()
+        sheet_index = int(sheet_index_entry.get())
+        r_low = float(r_low_entry.get())
+        r_high = float(r_high_entry.get())
+        output_path = output_file_path.get()
+
+        try:
+            main(simulationfolder, manualselectfolder, sheet_index, r_low, r_high, output_path)
+            messagebox.showinfo("Success", "Calculation completed successfully!")
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred: {e}")
+
+    def select_simulation_folder():
+        path = filedialog.askdirectory(title="Select Simulation Folder")
+        if path:
+            simulation_path.set(path)
+
+    def select_manual_select_file():
+        path = filedialog.askopenfilename(title="Select Manual Select File", filetypes=[("Excel Files", "*.xlsx")])
+        if path:
+            manual_select_path.set(path)
+
+    def select_output_file():
+        path = filedialog.asksaveasfilename(title="Save Output File", defaultextension=".xlsx",
+                                            filetypes=[("Excel Files", "*.xlsx")])
+        if path:
+            output_file_path.set(path)
+
+    root = tk.Tk()
+    root.title("Pressure Calculation Interface")
+    root.geometry("500x400")
+
+    simulation_path = tk.StringVar()
+    manual_select_path = tk.StringVar()
+    output_file_path = tk.StringVar()
+
+    tk.Label(root, text="Simulation Folder:").pack()
+    tk.Entry(root, textvariable=simulation_path, width=50).pack()
+    tk.Button(root, text="Browse", command=select_simulation_folder).pack()
+
+    tk.Label(root, text="Manual Select File:").pack()
+    tk.Entry(root, textvariable=manual_select_path, width=50).pack()
+    tk.Button(root, text="Browse", command=select_manual_select_file).pack()
+
+    tk.Label(root, text="Sheet Index:").pack()
+    sheet_index_entry = tk.Entry(root, width=10)
+    sheet_index_entry.insert(0, "0")
+    sheet_index_entry.pack()
+
+    tk.Label(root, text="Radius Low (r_low):").pack()
+    r_low_entry = tk.Entry(root, width=10)
+    r_low_entry.insert(0, "0")
+    r_low_entry.pack()
+
+    tk.Label(root, text="Radius High (r_high):").pack()
+    r_high_entry = tk.Entry(root, width=10)
+    r_high_entry.insert(0, "500")
+    r_high_entry.pack()
+
+    tk.Label(root, text="Output File:").pack()
+    tk.Entry(root, textvariable=output_file_path, width=50).pack()
+    tk.Button(root, text="Browse", command=select_output_file).pack()
+
+    tk.Button(root, text="Run", command=run_main).pack(pady=10)
+
+    root.mainloop()
+
+
+if __name__ == "__main__":
+    run_interface()
