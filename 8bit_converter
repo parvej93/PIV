@@ -1,0 +1,21 @@
+//this is an imageJ macro to corvert images into 8 bit images
+dir1 = getDirectory("Choose Source Directory"); 
+dir2 = getDirectory("Choose Destination Directory");
+
+
+list = getFileList(dir1);
+for (i = 0; i < list.length; i++) {
+    if (endsWith(list[i], ".czi")) { 
+ 
+        open(dir1 + list[i]);
+        
+        run("8-bit");
+        
+ 
+        filename = substring(list[i], 0, lengthOf(list[i]) - 4);
+        saveAs("Tiff", dir2 + filename + ".tiff"); 
+        
+     
+        close();
+    }
+}
