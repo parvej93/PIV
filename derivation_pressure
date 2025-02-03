@@ -43,7 +43,7 @@ def load_manual_select_data(manualselectfolder, sheet_index, r_low, r_high):
     sheet_name = excel_data.sheet_names[sheet_index]
     exp = excel_data.parse(sheet_name)
     
-    filtered_exp = exp[(exp['r'] >= r_low) & (exp['r'] <= r_high)]
+    filtered_exp = exp[(exp['d'] >= r_low) & (exp['r'] <= r_high)] #'d' was previously "r"
 
     return filtered_exp['c_dist'].values, filtered_exp['c_disp'].values, filtered_exp['r'].values
 
@@ -78,8 +78,8 @@ def plot_results(dpr2, dpr1, best_fit, best_pressure):
     plt.figure(figsize=(10, 6))
     plt.scatter(dpr1, dpr2, color='blue', label='Data Points')
     plt.plot(dpr1, best_fit, color='red', label=f'Best Fit (Pressure: {best_pressure:.1f} kPa)')
-    plt.xlabel('Radial Distance')
-    plt.ylabel('Displacement')
+    plt.xlabel('Normalized bead distance from spheroid surface (d/r)')
+    plt.ylabel('Normalized bead displacement towards surface normal direction (del/r')
     plt.title('Pressure Calculation')
     plt.legend()
     plt.show()
@@ -149,12 +149,12 @@ def run_interface():
     sheet_index_entry.insert(0, "0")
     sheet_index_entry.pack()
 
-    tk.Label(root, text="Radius Low (r_low):").pack()
+    tk.Label(root, text="Diameter Low (phi_low):").pack()
     r_low_entry = tk.Entry(root, width=10)
     r_low_entry.insert(0, "0")
     r_low_entry.pack()
 
-    tk.Label(root, text="Radius High (r_high):").pack()
+    tk.Label(root, text="Diameter High (phi_high):").pack()
     r_high_entry = tk.Entry(root, width=10)
     r_high_entry.insert(0, "500")
     r_high_entry.pack()
@@ -170,3 +170,4 @@ def run_interface():
 
 if __name__ == "__main__":
     run_interface()
+
